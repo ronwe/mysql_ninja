@@ -65,9 +65,11 @@ Net.createServer(function(sock) {
     sock.client = client
 
     sock.on('data', function(data) {
+		//https://jin-yang.github.io/post/mysql-protocol.html
+		//https://dev.mysql.com/doc/dev/mysql-server/8.0.0/page_protocol_basic_packets.html
 
 		if (data.readUInt8(4) === 0x03){
-			let _sql = data.slice(5).toString() //.replace(/^[^a-zA-Z]+/,'')
+			let _sql = data.slice(5).toString() 
 			//console.log('sql' ,_sql)
 
 			let _type = _sql.split(' ')[0].toLowerCase()
