@@ -41,32 +41,37 @@ Net.createServer(function(sock) {
 
     client.on('data', function(data) {
 		/*
-		*第一个字节值    后续字节数  长度值说明
-		*0-250            0   第一个字节值即为数据的真实长度
-		*  251            0   空数据，数据的真实长度为零
-		*  252            2   后续额外2个字节标识了数据的真实长度
-		*  253            3   后续额外3个字节标识了数据的真实长度
-		*  254            8   后续额外8个字节标识了数据的真实长度
+		*OK Packet                    00
+		*Error Packet                 ff
+		*Result Set Packet            1-250 (first byte of Length-Coded Binary)
+		*Field Packet                 1-250 ("")
+		*Row Data Packet              1-250 ("")
+		*EOF Packet                   fe
 		* ??? 现在是看最后一位是0x00 则结束
+		* 造个错误的sql
 		*/
-		//console.log('response: ',  data.readUInt8(0),data.length, data.slice(-5));
+		//https://jan.kneschke.de/projects/mysql/mysql-protocol/
 		//http://mysql.taobao.org/monthly/2018/04/05/	
 		//Packet.prototype.isEOF = function() {
 		//	  return this.buffer[this.offset] == 0xfe && this.length() < 13;
 		//};
+
         sock.write(data)
-		//https://jan.kneschke.de/projects/mysql/mysql-protocol/
-		//会有多次response ,得合并data？
-		_reponse_stack.push(data)
 		let last = data.readUInt8(Buffer.byteLength(data) -1)
-		//console.log('response: ',  data.readUInt8(0),data.length, data.slice(10),'|||',data.slice(-5),last)
-		if (last === 0x00){
-			let _query = _sequence.shift()
-			if (_query ){
-				Analytic.setCache(_query , _reponse_stack)
+			,first = data.readUInt8(0)
+		console.log('response: ',  first , last ,data.length , data.toString('hex'))
+
+		if (first >= 1 && first <= 250){
+			_reponse_stack.push(data)
+			if (last === 0x00){
+				let _query = _sequence.shift()
+				if (_query ){
+					Analytic.setCache(_query , _reponse_stack)
+				}
+				_reponse_stack = []
 			}
-			_reponse_stack = []
 		}else{
+			_reponse_stack = []
 		}
     })
     sock.client = client
@@ -76,7 +81,7 @@ Net.createServer(function(sock) {
 		//https://dev.mysql.com/doc/dev/mysql-server/8.0.0/page_protocol_basic_packets.html
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
-		//console.log('on data' ,data.toString())
+		console.log('on data' ,data.toString())
 		if (_detect === 0x03){
 			let _sql = data.slice(5).toString() 
 			//console.log('sql' ,_sql)
@@ -123,6 +128,37 @@ Net.createServer(function(sock) {
     })
 
 }).listen(PORT)
+/*
+0x00   COM_SLEEP           (none, this is an internal thread state)
+0x01   COM_QUIT            mysql_close
+0x02   COM_INIT_DB         mysql_select_db 
+0x03   COM_QUERY           mysql_real_query
+0x04   COM_FIELD_LIST      mysql_list_fields
+0x05   COM_CREATE_DB       mysql_create_db (deprecated)
+0x06   COM_DROP_DB         mysql_drop_db (deprecated)
+0x07   COM_REFRESH         mysql_refresh
+0x08   COM_SHUTDOWN        mysql_shutdown
+0x09   COM_STATISTICS      mysql_stat
+0x0a   COM_PROCESS_INFO    mysql_list_processes
+0x0b   COM_CONNECT         (none, this is an internal thread state)
+0x0c   COM_PROCESS_KILL    mysql_kill
+0x0d   COM_DEBUG           mysql_dump_debug_info
+0x0e   COM_PING            mysql_ping
+0x0f   COM_TIME            (none, this is an internal thread state)
+0x10   COM_DELAYED_INSERT  (none, this is an internal thread state)
+0x11   COM_CHANGE_USER     mysql_change_user
+0x12   COM_BINLOG_DUMP     sent by the slave IO thread to request a binlog
+0x13   COM_TABLE_DUMP      LOAD TABLE ... FROM MASTER (deprecated)
+0x14   COM_CONNECT_OUT     (none, this is an internal thread state)
+0x15   COM_REGISTER_SLAVE  sent by the slave to register with the master (optional)
+0x16   COM_STMT_PREPARE    mysql_stmt_prepare
+0x17   COM_STMT_EXECUTE    mysql_stmt_execute
+0x18   COM_STMT_SEND_LONG_DATA mysql_stmt_send_long_data
+0x19   COM_STMT_CLOSE      mysql_stmt_close
+0x1a   COM_STMT_RESET      mysql_stmt_reset
+0x1b   COM_SET_OPTION      mysql_set_server_option
+0x1c   COM_STMT_FETCH      mysql_stmt_fetch
+*/
 
 console.log('Server listening on ' + HOST +':'+ PORT)
 //node proxy.js -h 172.24.0.161 -P 3360 -x 13306
