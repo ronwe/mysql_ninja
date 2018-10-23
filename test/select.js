@@ -34,9 +34,9 @@ sql.push('select abc from table where  fielda between 1 and 100 and fieldb <-1 o
 
 sql.push('SELECT * from u_merchant_user limit 1 ')
 
+/*
 sql.push('SELECT * from u_merchant_user where 1=abc limit 1 ')
 
-/*
 sql.push(`select abc from u_merchant_user u join jointable x
 on x.a = u.b 
 where  u.b = " sth join sth" and u.b <-1`) 
