@@ -15,63 +15,77 @@ let program = {
 }
 
 let PORT = program.proxyport
+const _Debug = true
 
+function Print(...msg){
+	if (true !== _Debug) return
+	console.log.apply(console,msg)
+}
+function SysPrint(msg){
+	console.log(msg)
+}
 
 
 Net.createServer(function(sock) {
 	let _sequence = [] 
 
-    console.log('CONNECTED: ' + sock.remoteAddress +':'+ sock.remotePort);
+    SysPrint('CONNECTED: ' + sock.remoteAddress +':'+ sock.remotePort);
     let client = new Net.Socket()
 	let _reponse_stack  = []  
-    console.log("hostname is "+program.hostname + ':' +program.port);
+    SysPrint("hostname is "+program.hostname + ':' +program.port);
     client.connect(program.port||3306, program.hostname, function() {
-        console.log('Connected')
+        SysPrint('Connected')
     })
 
+	function processResponse(to_process){
+		let _query = _sequence.shift()
+		if (true === to_process && _reponse_stack.length){
+			Print('_query' , _query , _reponse_stack.length)
+			if (_query && _query.should_cache ){
+				Analytic.setCache(_query , _reponse_stack)
+			}
+		}
+		_reponse_stack = []
+	}
 
     client.on('close', function() {
-        console.log('Connection closed')
+        SysPrint('Connection closed')
         sock.end()
     })
 
     client.on('error',function(){
-        console.log("error")
+        SysPrint("error")
     })
 
     client.on('data', function(data) {
 		/*
 		*OK Packet                    00
+		*EOF Packet                   fe
 		*Error Packet                 ff
 		*Result Set Packet            1-250 (first byte of Length-Coded Binary)
 		*Field Packet                 1-250 ("")
 		*Row Data Packet              1-250 ("")
-		*EOF Packet                   fe
-		* ??? 现在是看最后一位是0x00 则结束
+		* or  现在是看最后一位是0x00 则结束
 		* 造个错误的sql
 		*/
 		//https://jan.kneschke.de/projects/mysql/mysql-protocol/
 		//http://mysql.taobao.org/monthly/2018/04/05/	
-		//Packet.prototype.isEOF = function() {
-		//	  return this.buffer[this.offset] == 0xfe && this.length() < 13;
-		//};
 
         sock.write(data)
 		let last = data.readUInt8(Buffer.byteLength(data) -1)
-			,first = data.readUInt8(0)
-		console.log('response: ',  first , last ,data.length , data.toString('hex'))
+			,first = data.readUInt8(4)
 
-		if (first >= 1 && first <= 250){
+		Print('response',first , last ,data.length,data)
+		if ((first >= 1 && first <= 250) || first === 0xfe){
 			_reponse_stack.push(data)
-			if (last === 0x00){
-				let _query = _sequence.shift()
-				if (_query ){
-					Analytic.setCache(_query , _reponse_stack)
-				}
-				_reponse_stack = []
+			if (last === 0x00 ){
+				processResponse(true)
 			}
-		}else{
-			_reponse_stack = []
+		}else if (first === 0xff){
+			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
+			processResponse(false)
+		}else if (first === 0x00){
+			processResponse(false)
 		}
     })
     sock.client = client
@@ -81,19 +95,20 @@ Net.createServer(function(sock) {
 		//https://dev.mysql.com/doc/dev/mysql-server/8.0.0/page_protocol_basic_packets.html
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
-		console.log('on data' ,data.toString())
+			,_query
+		Print('on data' ,data.toString())
 		if (_detect === 0x03){
 			let _sql = data.slice(5).toString() 
-			//console.log('sql' ,_sql)
+			//Print('sql' ,_sql)
 
 			let _type = _sql.split(' ')[0].toLowerCase()
 			// sql中包含注释会导致分析错误
 			switch(_type){
 				case 'select':
-					let _query = Analytic.wrap(_sql)
+					_query = Analytic.wrap(_sql)
 					let _cache = Cache.get(_query)
 					if (_cache){
-						console.log('from cache\n', _query,_cache.length  )
+						Print('from cache\n', _query,_cache.length  )
 						//sock.write( _cache  )
 						_cache.forEach(c => {
 							sock.write( c  )
@@ -101,8 +116,8 @@ Net.createServer(function(sock) {
 						return
 					
 					}else if (Analytic.isCacheAble(_query)) {
-						console.log('waiting cache')
-						_sequence.push(_query) 
+						Print('waiting cache')
+						_query.should_cache = true
 					}
 					break
 				case 'update':
@@ -114,8 +129,10 @@ Net.createServer(function(sock) {
 			}
 		}else if ( _detect === 0x02){
 			///TODO COM_INIT_DB
-
 		}
+
+		_sequence.push(_query || {}) 
+
         sock.client.write(data)
     })
 
@@ -124,7 +141,7 @@ Net.createServer(function(sock) {
     })
 
     sock.on('error',function(){
-        console.log("error sock")
+        Print("error sock")
     })
 
 }).listen(PORT)
@@ -160,5 +177,5 @@ Net.createServer(function(sock) {
 0x1c   COM_STMT_FETCH      mysql_stmt_fetch
 */
 
-console.log('Server listening on ' + HOST +':'+ PORT)
+SysPrint('Server listening on ' + HOST +':'+ PORT)
 //node proxy.js -h 172.24.0.161 -P 3360 -x 13306
