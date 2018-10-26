@@ -28,15 +28,29 @@ function SysPrint(msg){
 
 Net.createServer(function(sock) {
 	let _sequence = [] 
+		,_default_db
+		,_handshaked = false
+    	,client = new Net.Socket()
+		,_reponse_stack  = []  
 
     SysPrint('CONNECTED: ' + sock.remoteAddress +':'+ sock.remotePort);
-    let client = new Net.Socket()
-	let _reponse_stack  = []  
+	
     SysPrint("hostname is "+program.hostname + ':' +program.port);
     client.connect(program.port||3306, program.hostname, function() {
         SysPrint('Connected')
     })
 
+	function handShakeInited(){
+		let _query = _sequence.shift()
+		//init _default_db
+
+		if (!_query){
+			Print('connnet not init')
+			client.emit('close')
+		}
+		console.log('handshake' ,_query.toString())
+
+	}
 	function processResponse(to_process){
 		let _query = _sequence.shift()
 		if (true === to_process && _reponse_stack.length){
@@ -68,6 +82,7 @@ Net.createServer(function(sock) {
 		* or  现在是看最后一位是0x00 则结束
 		* 造个错误的sql
 		*/
+		//https://zhuanlan.zhihu.com/p/24661533
 		//https://jan.kneschke.de/projects/mysql/mysql-protocol/
 		//http://mysql.taobao.org/monthly/2018/04/05/	
 
@@ -76,39 +91,56 @@ Net.createServer(function(sock) {
 			,first = data.readUInt8(4)
 
 		Print('response',first , last ,data.length,data)
+		/*
 		if ((first >= 1 && first <= 250) || first === 0xfe){
+		}else 
+		*/
+		if (first === 0xff){
+			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
+			processResponse(false)
+		}else if (first === 0x00){
+			if (!_handshaked){
+				_handshaked = true
+				handShakeInited()
+			}else{
+				processResponse(false)
+			}
+		}else {
 			_reponse_stack.push(data)
 			if (last === 0x00 ){
 				processResponse(true)
 			}
-		}else if (first === 0xff){
-			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
-			processResponse(false)
-		}else if (first === 0x00){
-			processResponse(false)
 		}
     })
     sock.client = client
 
     sock.on('data', function(data) {
+		//握手协议
+		//https://dev.mysql.com/doc/dev/mysql-server/8.0.11/page_protocol_connection_phase_packets_protocol_handshake_v10.html
 		//https://jin-yang.github.io/post/mysql-protocol.html
 		//https://dev.mysql.com/doc/dev/mysql-server/8.0.0/page_protocol_basic_packets.html
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
 			,_query
 		Print('on data' ,data.toString())
+		if (!_handshaked){
+			_query = data
+		}
+		//com标识 这个比较重要
+		//https://dev.mysql.com/doc/internals/en/text-protocol.html
 		if (_detect === 0x03){
 			let _sql = data.slice(5).toString() 
 			//Print('sql' ,_sql)
 
 			let _type = _sql.split(' ')[0].toLowerCase()
 			// sql中包含注释会导致分析错误
+			_query = Analytic.wrap(_sql,_default_db)
 			switch(_type){
 				case 'select':
-					_query = Analytic.wrap(_sql)
 					let _cache = Cache.get(_query)
 					if (_cache){
 						Print('from cache\n', _query,_cache.length  )
+						//Print(_cache)
 						//sock.write( _cache  )
 						_cache.forEach(c => {
 							sock.write( c  )
@@ -121,8 +153,13 @@ Net.createServer(function(sock) {
 					}
 					break
 				case 'update':
+					break
 				case 'delete':
 				case 'insert':
+					break
+				case 'use':
+					_default_db = Analytic.getUseDB(_sql)
+					console.log('_default_db' ,_default_db)
 					break
 				default:	
 					_sequence.length = 0
