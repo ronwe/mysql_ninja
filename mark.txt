@@ -1,0 +1,77 @@
+HandshakeInitializationPacket {
+  protocolVersion: 10,
+  serverVersion: '5.6.41',
+  threadId: 210988,
+  scrambleBuff1: <Buffer 3e 55 72 5d 59 2a 61 2d>,
+  filler1: <Buffer 00>,
+  serverCapabilities1: 63487,
+  serverLanguage: 224,
+  serverStatus: 2,
+  serverCapabilities2: 32895,
+  scrambleLength: 21,
+  filler2: <Buffer 00 00 00 00 00 00 00 00 00 00>,
+  scrambleBuff2: <Buffer 5b 61 59 76 68 27 25 24 25 2f 58 4e>,
+  filler3: <Buffer 00>,
+  pluginData: 'mysql_native_password',
+  protocol41: true }
+
+
+
+  if (this.protocol41) {
+    writer.writeUnsignedNumber(4, this.clientFlags);
+    writer.writeUnsignedNumber(4, this.maxPacketSize);
+    writer.writeUnsignedNumber(1, this.charsetNumber);
+    writer.writeFiller(23);
+    writer.writeNullTerminatedString(this.user);
+    writer.writeLengthCodedBuffer(this.scrambleBuff);
+    writer.writeNullTerminatedString(this.database);
+  } else {
+    writer.writeUnsignedNumber(2, this.clientFlags);
+    writer.writeUnsignedNumber(3, this.maxPacketSize);
+    writer.writeNullTerminatedString(this.user);
+    writer.writeBuffer(this.scrambleBuff);
+    if (this.database && this.database.length) {
+      writer.writeFiller(1);
+      writer.writeBuffer(Buffer.from(this.database));
+    }
+  }
+
+HandshakeInitializationPacket.prototype.parse = function(parser) {
+  this.protocolVersion     = parser.parseUnsignedNumber(1);
+  this.serverVersion       = parser.parseNullTerminatedString();
+  this.threadId            = parser.parseUnsignedNumber(4);
+  this.scrambleBuff1       = parser.parseBuffer(8);
+  this.filler1             = parser.parseFiller(1);
+  this.serverCapabilities1 = parser.parseUnsignedNumber(2);
+  this.serverLanguage      = parser.parseUnsignedNumber(1);
+  this.serverStatus        = parser.parseUnsignedNumber(2);
+
+  this.protocol41          = (this.serverCapabilities1 & (1 << 9)) > 0;
+
+  if (this.protocol41) {
+    this.serverCapabilities2 = parser.parseUnsignedNumber(2);
+    this.scrambleLength      = parser.parseUnsignedNumber(1);
+    this.filler2             = parser.parseFiller(10);
+    // scrambleBuff2 should be 0x00 terminated, but sphinx does not do this
+    // so we assume scrambleBuff2 to be 12 byte and treat the next byte as a
+    // filler byte.
+    this.scrambleBuff2       = parser.parseBuffer(12);
+    this.filler3             = parser.parseFiller(1);
+  } else {
+    this.filler2             = parser.parseFiller(13);
+  }
+
+  if (parser.reachedPacketEnd()) {
+    return;
+  }
+
+  // According to the docs this should be 0x00 terminated, but MariaDB does
+  // not do this, so we assume this string to be packet terminated.
+  this.pluginData = parser.parsePacketTerminatedString();
+
+  // However, if there is a trailing '\0', strip it
+  var lastChar = this.pluginData.length - 1;
+  if (this.pluginData[lastChar] === '\0') {
+    this.pluginData = this.pluginData.substr(0, lastChar);
+  }
+};

@@ -40,6 +40,33 @@ Net.createServer(function(sock) {
         SysPrint('Connected')
     })
 
+
+	function parseHandShake(buff){
+
+		let _check_pos = buff.indexOf(Buffer.alloc(23,0x00))
+			,protocol41 = false
+		if (_check_pos > 0){
+			//protocol41
+			buff =  buff.slice(_check_pos + 23)
+			protocol41 = true
+		}
+		//find user field end
+		_check_pos = buff.indexOf(0x00)
+		buff =  buff.slice(_check_pos + 1)
+		if (protocol41){
+			buff =  buff.slice(21)	//20 + 1
+		}else{
+			buff =  buff.slice(10) // 8 + 1 + 1	
+		}
+		_check_pos = buff.indexOf(0x00)
+		
+
+		let default_db = buff.slice(0, _check_pos).toString()
+		return {
+			default_db : default_db
+		}
+	}
+
 	function handShakeInited(){
 		let _query = _sequence.shift()
 		//init _default_db
@@ -48,7 +75,11 @@ Net.createServer(function(sock) {
 			Print('connnet not init')
 			client.emit('close')
 		}
-		console.log('handshake' ,_query.toString())
+		let _parsed_handshake = parseHandShake(_query)
+		if (_parsed_handshake){
+			_default_db  = _parsed_handshake.default_db
+			console.log('_default_db' ,_default_db)
+		}
 
 	}
 	function processResponse(to_process){
