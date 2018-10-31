@@ -1,5 +1,5 @@
 
-let Analytic = require('../lib/select_analytic.js')
+let Parser = require('../lib/parser.js')
 //.getTableNames
 //.getWhereCondition
 //.setCacheTables
@@ -44,7 +44,7 @@ where  u.b = " sth join sth" and u.b <-1`)
 
 let _sql = sql.pop()
 console.log('\x1b[0m')
-var tables = Analytic.getTableNames(_sql)
-	,where = Analytic.getWhereCondition(_sql , tables)
+var tables = Parser.getTableNames(_sql)
+	,where = Parser.getWhereCondition(_sql , tables)
 
 console.log('\x1b[31mtables:' , tables, '\nwhere:' ,JSON.stringify(where,null,4))

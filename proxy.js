@@ -3,8 +3,8 @@ let Net = require('net')
 	,Stream = require('stream').Stream
 	,Util = require('util')
 
-let Analytic = require('./lib/select_analytic.js')
-let Cache = require('./lib/select_cache.js') 
+let Analytic = require('./lib/analytic.js')
+let Cache = require('./lib/cache.js') 
 
 let HOST= '127.0.0.1' 
 
@@ -193,9 +193,9 @@ Net.createServer(function(sock) {
 					}
 					break
 				case 'update':
-					break
 				case 'delete':
 				case 'insert':
+					Analytic.checkCache(_type ,_query)
 					break
 				case 'use':
 					_default_db = Analytic.getUseDB(_sql)
