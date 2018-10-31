@@ -33,12 +33,18 @@ Net.createServer(function(sock) {
     	,client = new Net.Socket()
 		,_reponse_stack  = []  
 
-    SysPrint('CONNECTED: ' + sock.remoteAddress +':'+ sock.remotePort);
+    SysPrint('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort)
 	
-    SysPrint("hostname is "+program.hostname + ':' +program.port);
+    SysPrint("hostname is " + program.hostname + ':' + program.port)
     client.connect(program.port||3306, program.hostname, function() {
         SysPrint('Connected')
     })
+
+
+	function disConnect(){
+		sock.close() //关闭客户连接
+		client.close() //关闭mysql server连接,TODO 链接池
+	}
 
 
 	function parseHandShake(buff){
@@ -77,11 +83,15 @@ Net.createServer(function(sock) {
 		}
 		let _parsed_handshake = parseHandShake(_query)
 		if (_parsed_handshake){
+			_handshaked = true
 			_default_db  = _parsed_handshake.default_db
-			console.log('_default_db' ,_default_db)
+			Print('init default_db' ,_default_db)
+		}else{
+			//handshake fail,disconnect
+			disConnect()
 		}
-
 	}
+
 	function processResponse(to_process){
 		let _query = _sequence.shift()
 		if (true === to_process && _reponse_stack.length){
@@ -131,7 +141,6 @@ Net.createServer(function(sock) {
 			processResponse(false)
 		}else if (first === 0x00){
 			if (!_handshaked){
-				_handshaked = true
 				handShakeInited()
 			}else{
 				processResponse(false)
