@@ -15,6 +15,11 @@ let program = {
 }
 
 let PORT = program.proxyport
+const PACKET = {
+		OK : Symbol('ok'),
+		ERROR: Symbol('error'),
+		ROW: Symbol('row'),
+	}
 const _Debug = true
 
 function Print(...msg){
@@ -92,12 +97,27 @@ Net.createServer(function(sock) {
 		}
 	}
 
-	function processResponse(to_process){
+	function processResponse(packet_type){
 		let _query = _sequence.shift()
-		if (true === to_process && _reponse_stack.length){
-			Print('_query' , _query , _reponse_stack.length)
+		if (PACKET.ROW === packet_type && _reponse_stack.length){
+			///Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
 				Analytic.setCache(_query , _reponse_stack)
+			}
+		}else if (PACKET.OK === packet_type){
+			Print('_query' , _query , _reponse_stack.length)
+			let _type = _query.type
+			switch ( _type ){
+				case 'update':
+				case 'delete':
+				case 'insert':
+				case 'replace':
+					Analytic.dataChange(_query)
+					break
+				case 'use':
+					_default_db = Analytic.getUseDB(_query.sql)
+					console.log('_default_db' ,_default_db)
+					break
 			}
 		}
 		_reponse_stack = []
@@ -132,23 +152,25 @@ Net.createServer(function(sock) {
 			,first = data.readUInt8(4)
 
 		Print('response',first , last ,data.length,data)
+		Print(data.toString())
 		/*
 		if ((first >= 1 && first <= 250) || first === 0xfe){
 		}else 
 		*/
 		if (first === 0xff){
 			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
-			processResponse(false)
+			processResponse(PACKET.ERROR)
 		}else if (first === 0x00){
 			if (!_handshaked){
 				handShakeInited()
 			}else{
-				processResponse(false)
+				//OK 处理更新记录，切换数据库
+				processResponse(PACKET.OK)
 			}
 		}else {
 			_reponse_stack.push(data)
 			if (last === 0x00 ){
-				processResponse(true)
+				processResponse(PACKET.ROW)
 			}
 		}
     })
@@ -174,7 +196,7 @@ Net.createServer(function(sock) {
 
 			let _type = _sql.split(' ')[0].toLowerCase()
 			// sql中包含注释会导致分析错误
-			_query = Analytic.wrap(_sql,_default_db)
+			_query = Analytic.wrap(_sql,_default_db,_type)
 			switch(_type){
 				case 'select':
 					let _cache = Cache.get(_query)
@@ -195,14 +217,11 @@ Net.createServer(function(sock) {
 				case 'update':
 				case 'delete':
 				case 'insert':
-					Analytic.checkCache(_type ,_query)
-					break
+				case 'replace':
 				case 'use':
-					_default_db = Analytic.getUseDB(_sql)
-					console.log('_default_db' ,_default_db)
 					break
 				default:	
-					_sequence.length = 0
+					////_sequence.length = 0
 			}
 		}else if ( _detect === 0x02){
 			///TODO COM_INIT_DB
