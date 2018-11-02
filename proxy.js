@@ -151,11 +151,10 @@ Net.createServer(function(sock) {
 		let last = data.readUInt8(Buffer.byteLength(data) -1)
 			,first = data.readUInt8(4)
 
-		Print('response',first , last ,data.length,data)
-		Print(data.toString())
+		///Print('response',first , last ,data.length,data)
+		///Print(data.toString())
 		/*
 		if ((first >= 1 && first <= 250) || first === 0xfe){
-		}else 
 		*/
 		if (first === 0xff){
 			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
@@ -200,12 +199,19 @@ Net.createServer(function(sock) {
 			switch(_type){
 				case 'select':
 					let _cache = Cache.get(_query)
+						Print('from cache\n', _query, _cache)
 					if (_cache){
-						Print('from cache\n', _query,_cache.length  )
-						//Print(_cache)
-						//sock.write( _cache  )
-						_cache.forEach(c => {
-							sock.write( c  )
+						Print('from cache\n', _query, _cache)
+						//TODO 改成异步读取内容
+						Cache.readBody(_cache.fd).then(body =>{
+							body.forEach(c => {
+								sock.write( c  )
+							})
+						}).catch(err => {
+							console.error('cache read fail ' ,_query)
+							Cache.del(_query)
+							sock.write(0xff)	
+							/// TODO throw error sock.write(Buffer.from(err))	
 						})
 						return
 					
