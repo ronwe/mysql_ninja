@@ -4,7 +4,7 @@ let Net = require('net')
 	,Util = require('util')
 
 let Analytic = require('./lib/analytic.js')
-let Cache = require('./lib/cache.js') 
+let Cache = require('./lib/cache/index.js') 
 
 let HOST= '127.0.0.1' 
 
@@ -102,7 +102,8 @@ Net.createServer(function(sock) {
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
 			///Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
-				Analytic.setCache(_query , _reponse_stack)
+				Cache.set(_query, _reponse_stack)
+				Analytic.setCached(_query , _reponse_stack)
 			}
 		}else if (PACKET.OK === packet_type){
 			Print('_query' , _query , _reponse_stack.length)
@@ -199,7 +200,7 @@ Net.createServer(function(sock) {
 			switch(_type){
 				case 'select':
 					let _cache = Cache.get(_query)
-						Print('from cache\n', _query, _cache)
+					//Print('from cache\n', _query, _cache)
 					if (_cache){
 						Print('from cache\n', _query, _cache)
 						//TODO 改成异步读取内容
