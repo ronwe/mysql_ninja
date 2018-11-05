@@ -100,10 +100,12 @@ Net.createServer(function(sock) {
 	function processResponse(packet_type){
 		let _query = _sequence.shift()
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
-			///Print('_query' , _query , _reponse_stack.length)
+			Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
-				Cache.set(_query, _reponse_stack)
-				Analytic.setCached(_query , _reponse_stack)
+				Cache.set(_query, _reponse_stack , function(err){
+					//TODO influence 需要存下来，等更新记录时（dataChange）查找影响的cache 
+					Analytic.setCached(_query)
+				})
 			}
 		}else if (PACKET.OK === packet_type){
 			Print('_query' , _query , _reponse_stack.length)
@@ -200,6 +202,7 @@ Net.createServer(function(sock) {
 			switch(_type){
 				case 'select':
 					let _cache = Cache.get(_query)
+						,_influence
 					//Print('from cache\n', _query, _cache)
 					if (_cache){
 						Print('from cache\n', _query, _cache)
@@ -209,16 +212,17 @@ Net.createServer(function(sock) {
 								sock.write( c  )
 							})
 						}).catch(err => {
-							console.error('cache read fail ' ,_query)
+							Print('cache read fail ' ,_query)
 							Cache.del(_query)
 							sock.write(0xff)	
 							/// TODO throw error sock.write(Buffer.from(err))	
 						})
 						return
 					
-					}else if (Analytic.isCacheAble(_query)) {
+					}else if (_influence = Analytic.isCacheAble(_query)) {
 						Print('waiting cache')
 						_query.should_cache = true
+						_query.influence = _influence
 					}
 					break
 				case 'update':
