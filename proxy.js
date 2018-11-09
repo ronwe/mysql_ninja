@@ -4,7 +4,8 @@ let Net = require('net')
 	,Util = require('util')
 
 let Analytic = require('./lib/analytic.js')
-let Cache = require('./lib/cache/index.js') 
+	,Cache = require('./lib/cache/index.js') 
+	,Result = require('./lib/parse/result.js')
 
 let HOST= '127.0.0.1' 
 
@@ -37,6 +38,8 @@ Net.createServer(function(sock) {
 		,_handshaked = false
     	,client = new Net.Socket()
 		,_reponse_stack  = []  
+		,protocol41 = false
+		,_result = new Result()
 
     SysPrint('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort)
 	
@@ -55,7 +58,6 @@ Net.createServer(function(sock) {
 	function parseHandShake(buff){
 
 		let _check_pos = buff.indexOf(Buffer.alloc(23,0x00))
-			,protocol41 = false
 		if (_check_pos > 0){
 			//protocol41
 			buff =  buff.slice(_check_pos + 23)
@@ -102,6 +104,7 @@ Net.createServer(function(sock) {
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
 			Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
+				console.log('responsesss' , _reponse_stack)
 				Cache.set(_query, _reponse_stack , function(err){
 					//TODO influence 需要存下来，等更新记录时（dataChange）查找影响的cache 
 					Analytic.setCached(_query)
@@ -149,30 +152,43 @@ Net.createServer(function(sock) {
 		//https://zhuanlan.zhihu.com/p/24661533
 		//https://jan.kneschke.de/projects/mysql/mysql-protocol/
 		//http://mysql.taobao.org/monthly/2018/04/05/	
+		//https://blog.csdn.net/caisini_vc/article/details/5356136
 
         sock.write(data)
-		let last = data.readUInt8(Buffer.byteLength(data) -1)
-			,first = data.readUInt8(4)
+		let first = data.readUInt8(4)
 
+		let last = data.readUInt8(Buffer.byteLength(data) -1)
 		///Print('response',first , last ,data.length,data)
 		///Print(data.toString())
 		/*
 		if ((first >= 1 && first <= 250) || first === 0xfe){
 		*/
 		if (first === 0xff){
+			_result.reset()
 			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
 			processResponse(PACKET.ERROR)
 		}else if (first === 0x00){
+			_result.reset()
 			if (!_handshaked){
 				handShakeInited()
 			}else{
+				//header affected last_insert_id
 				//OK 处理更新记录，切换数据库
 				processResponse(PACKET.OK)
 			}
-		}else {
-			_reponse_stack.push(data)
+		}else if(_handshaked){
+			console.log('raw',last)
+			_result.write(data)
+			
 			if (last === 0x00 ){
-				processResponse(PACKET.ROW)
+				let _rows = _result.read()  
+				if (_rows.headed && _rows.bodyed){
+					_reponse_stack.push(Buffer.concat(_rows.head))
+					_reponse_stack.push(Buffer.concat(_rows.body))
+
+					_result.reset()
+					processResponse(PACKET.ROW)
+				}
 			}
 		}
     })
@@ -214,7 +230,9 @@ Net.createServer(function(sock) {
 						}).catch(err => {
 							Print('cache read fail ' ,_query)
 							Cache.del(_query)
-							sock.write(0xff)	
+							//错误码 https://www.jianshu.com/p/53233bb792cf
+							//1158 SQLSTATE: 08S01 (ER_NET_READ_ERROR) 消息：读取通信信息包时出错
+							sock.write(Buffer.from([0xff,0x486,0xfe]))	
 							/// TODO throw error sock.write(Buffer.from(err))	
 						})
 						return
