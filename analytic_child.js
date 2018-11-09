@@ -2,8 +2,31 @@
 let Conf = require('./conf.json')
 	,CacheTables = Conf.cache_tables 
 	,Parser = require('./lib/parser.js')
-	,getAfffectTableName = Parser.getAfffectTableName
+
+let getAfffectTableName = Parser.getAfffectTableName
 	,getWhereCondition = Parser.getWhereCondition
+	,getInsertRecord = Parser.getInsertRecord
+	,getUpdatedField = Parser.getUpdatedField
+
+function checkAffect(query,cbk){
+	let tables = Parser.getTableNames(query.sql,query.type , query.default_db)
+		,affected
+	switch(query.type){
+		case 'update':
+		case 'delete':
+			affected = getWhereCondition(query.sql,tables)
+			/// getUpdatedField
+			break
+		case 'replace':
+		case 'insert':
+			affected = getInsertRecord(query.sql,tables)
+			break
+	}
+	///TODO getUpdatedField
+	///TODO 处理影响到的缓存
+	///TODO 数据变动消息通知
+	ckb( affected)
+}
 /*
  * 分析影响字段 
  * return {表a: {
@@ -56,7 +79,16 @@ process.on('message', (msg) => {
 		isQueryCacheAble(msg.query,function(ret){
     		process.send({
 				code : 0,
+				input : msg.query,
 				result : ret
+			})
+		})
+	}else if(msg.affect){
+		checkAffect(msg.query, function(ret){
+    		process.send({
+				code : 0,
+				input : msg.query,
+				affected : ret
 			})
 		})
 	}
