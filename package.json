@@ -1,0 +1,26 @@
+{
+  "name": "sql_ninja",
+  "version": "1.0.0",
+  "description": "",
+  "main": "proxy.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ronwe/mysql_ninja.git"
+  },
+  "author": "ronwe",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ronwe/mysql_ninja/issues"
+  },
+  "homepage": "https://github.com/ronwe/mysql_ninja#readme",
+  "dependencies": {
+    "nedb": "^1.8.0"
+  }
+}

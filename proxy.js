@@ -2,6 +2,7 @@ let Net = require('net')
 	,Events = require('events')
 	,Stream = require('stream').Stream
 	,Util = require('util')
+	,Nedb = require('nedb')
 
 let Analytic = require('./lib/analytic.js')
 	,Cache = require('./lib/cache/index.js') 
@@ -104,10 +105,12 @@ Net.createServer(function(sock) {
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
 			Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
-				console.log('responsesss' , _reponse_stack)
-				Cache.set(_query, _reponse_stack , function(err){
+				//console.log('responsesss' , _reponse_stack)
+				Cache.set(_query, _reponse_stack).then(function(){
 					//TODO influence 需要存下来，等更新记录时（dataChange）查找影响的cache 
-					Analytic.setCached(_query)
+					//Analytic.setCached(_query)
+				}).catch(function(err){
+
 				})
 			}
 		}else if (PACKET.OK === packet_type){
@@ -160,9 +163,7 @@ Net.createServer(function(sock) {
 		let last = data.readUInt8(Buffer.byteLength(data) -1)
 		///Print('response',first , last ,data.length,data)
 		///Print(data.toString())
-		/*
-		if ((first >= 1 && first <= 250) || first === 0xfe){
-		*/
+		///Print('raw',last,data)
 		if (first === 0xff){
 			_result.reset()
 			//error packet 可能是错误的sql ，可能是字段还没添加 所以不缓存 
@@ -177,7 +178,6 @@ Net.createServer(function(sock) {
 				processResponse(PACKET.OK)
 			}
 		}else if(_handshaked){
-			console.log('raw',last)
 			_result.write(data)
 			
 			if (last === 0x00 ){
@@ -228,11 +228,11 @@ Net.createServer(function(sock) {
 								sock.write( c  )
 							})
 						}).catch(err => {
-							Print('cache read fail ' ,_query)
-							Cache.del(_query)
 							//错误码 https://www.jianshu.com/p/53233bb792cf
 							//1158 SQLSTATE: 08S01 (ER_NET_READ_ERROR) 消息：读取通信信息包时出错
-							sock.write(Buffer.from([0xff,0x486,0xfe]))	
+							sock.write(Buffer.from([0x03,0x00,0x00,0x01,0xff,0x486,0xfe]))	
+							Print('cache read fail ' ,_query)
+							Cache.del(_query)
 							/// TODO throw error sock.write(Buffer.from(err))	
 						})
 						return
