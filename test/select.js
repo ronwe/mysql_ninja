@@ -32,8 +32,9 @@ sql.push('select abc from u_merchant_user where  b is not null and b <-1 ')
 
 sql.push('select abc from table where  fielda between 1 and 100 and fieldb <-1 or fieldc="fielda" ')
 
-sql.push('SELECT * from u_merchant_user limit 1 ')
+sql.push('SELECT mid,create_time, type from u_merchant_user limit 1 ')
 
+sql.push('select * from u_merchant_user u,d_spot_collection_dir as d where d.mid = u.mid and u.mid in (19,20,21,22)  order by u.mid desc limit 10')
 /*
 sql.push('SELECT * from u_merchant_user where 1=abc limit 1 ')
 
@@ -44,7 +45,8 @@ where  u.b = " sth join sth" and u.b <-1`)
 
 let _sql = sql.pop()
 console.log('\x1b[0m')
-var tables = Parser.getTableNames(_sql)
+var tables = Parser.getTableNames(_sql,'select' ,'lavaradio')
 	,where = Parser.getWhereCondition(_sql , tables)
+	,fields = Parser.getSelectFields(_sql , tables)
 
-console.log('\x1b[31mtables:' , tables, '\nwhere:' ,JSON.stringify(where,null,4))
+console.log('\x1b[31mtables:' , tables, '\nwhere:' ,JSON.stringify(where,null,4) , '\nfields:' , JSON.stringify(fields ,null,4))

@@ -1,7 +1,11 @@
 {
 "cache_tables": {
-	"u_merchant_user" : {}
-	,"d_spot_collection_dir" : {}
+	"u_merchant_user" : {
+		"id" : "mid"
+	}
+	,"d_spot_collection_dir" : {
+		"id" : "id"
+	}
 	},
 "cache_path" : "../../cached/abc"
 }

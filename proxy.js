@@ -105,9 +105,9 @@ Net.createServer(function(sock) {
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
 			Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
-				//console.log('responsesss' , _reponse_stack)
+				
+				//TODO 解析_reponse_stack 获得id值
 				Cache.set(_query, _reponse_stack).then(function(){
-					//TODO influence 需要存下来，等更新记录时（dataChange）查找影响的cache 
 					//Analytic.setCached(_query)
 				}).catch(function(err){
 
@@ -239,7 +239,9 @@ Net.createServer(function(sock) {
 					
 					}else if (_influence = Analytic.isCacheAble(_query)) {
 						Print('waiting cache')
+					
 						_query.should_cache = true
+						//_query.influence = _influence.where
 						_query.influence = _influence
 					}
 					break

@@ -7,10 +7,12 @@ let getAfffectTableName = Parser.getAfffectTableName
 	,getWhereCondition = Parser.getWhereCondition
 	,getInsertRecord = Parser.getInsertRecord
 	,getUpdatedField = Parser.getUpdatedField
+	,getSelectFields = Parser.getSelectFields
 
 function checkAffect(query,cbk){
 	let tables = Parser.getTableNames(query.sql,query.type , query.default_db)
 		,affected
+		,fields
 	switch(query.type){
 		case 'update':
 		case 'delete':
@@ -25,7 +27,7 @@ function checkAffect(query,cbk){
 	///TODO getUpdatedField
 	///TODO 处理影响到的缓存
 	///TODO 数据变动消息通知
-	ckb( affected)
+	cbk( affected)
 }
 /*
  * 分析影响字段 
@@ -47,6 +49,8 @@ function getWhere(query,tables ){
 function isQueryCacheAble(query ,cbk){
 	let _to_cache
 		,tables
+		,fields
+		,id_fields = {} 
 
 	//TODO 子查询需要取出处理 暂时不支持
 	if (query.sql.toLowerCase().split(' from ').length != 2){
@@ -60,13 +64,45 @@ function isQueryCacheAble(query ,cbk){
 		})
 	}
 
+	if (_to_cache){
+		fields = getSelectFields(query.sql, tables)
+		_to_cache = fields && tables && tables.length && tables.every(table => {
+			let table_name = table.name
+				,table_option = CacheTables[table_name]
+				,_check = false
+			fields.every( fld =>{
+				if (
+					fld.table === table_name && 
+					(fld.name === table_option.id || fld.name === '*')
+				){
+					_check = true
+					let _k = fld.alias
+					if ('*' === _k){
+						_k = table_option.id
+					}
+					id_fields[_k] = {
+						table : fld.table,
+						name  : fld.name
+					} 
+
+					return false
+				}
+				return true
+			})	
+			return _check
+		})
+	}
+
+
 	if (!_to_cache) {
 		return cbk(false)
 	}else{
+
 		/*分析字段 分析不了的不cache 并标注*/
-		let _where = getWhere(query, tables)
-		if ('object' === typeof _where){
-			return cbk(_where) 
+		//let _where = getWhere(query, tables)
+		//if ('object' === typeof _where){
+		if ('object' === typeof id_fields){
+			return cbk( id_fields) 
 		}else{
 			return cbk(false)
 		}
@@ -76,20 +112,28 @@ function isQueryCacheAble(query ,cbk){
 }
 process.on('message', (msg) => {
 	if (msg.query){
-		isQueryCacheAble(msg.query,function(ret){
+		isQueryCacheAble(msg.query,function(id_names){
     		process.send({
 				code : 0,
 				input : msg.query,
-				result : ret
+				id_name: id_names 
 			})
 		})
 	}else if(msg.affect){
-		checkAffect(msg.query, function(ret){
+		checkAffect(msg.affect, function(ret){
     		process.send({
 				code : 0,
-				input : msg.query,
+				input : msg.affect,
 				affected : ret
 			})
 		})
 	}
+})
+
+process.on('uncaughtException', function(e){
+	console.error('child error',e)
+    process.send({
+		code:500,
+		err: e.toString()
+	})
 })
