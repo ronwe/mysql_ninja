@@ -103,15 +103,23 @@ Net.createServer(function(sock) {
 	function processResponse(packet_type){
 		let _query = _sequence.shift()
 		if (PACKET.ROW === packet_type && _reponse_stack.length){
-			Print('_query' , _query , _reponse_stack.length)
+			///Print('_query' , _query , _reponse_stack.length)
 			if (_query && _query.should_cache ){
 				
 				//TODO 解析_reponse_stack 获得id值
+				Analytic.fillCache(_query,{
+					'head' : _reponse_stack[0]
+					,'body' : _reponse_stack[1]
+					,'columns' : _reponse_stack[2]
+					,'columns_values' : _reponse_stack[3]
+				})
+				/*
 				Cache.set(_query, _reponse_stack).then(function(){
 					//Analytic.setCached(_query)
 				}).catch(function(err){
 
 				})
+				*/
 			}
 		}else if (PACKET.OK === packet_type){
 			Print('_query' , _query , _reponse_stack.length)
@@ -121,7 +129,7 @@ Net.createServer(function(sock) {
 				case 'delete':
 				case 'insert':
 				case 'replace':
-					Analytic.dataChange(_query)
+					//Analytic.dataChange(_query)
 					break
 				case 'use':
 					_default_db = Analytic.getUseDB(_query.sql)
@@ -137,8 +145,8 @@ Net.createServer(function(sock) {
         sock.end()
     })
 
-    client.on('error',function(){
-        SysPrint("error")
+    client.on('error',function(err){
+        SysPrint("client error",err)
     })
 
     client.on('data', function(data) {
@@ -178,13 +186,19 @@ Net.createServer(function(sock) {
 				processResponse(PACKET.OK)
 			}
 		}else if(_handshaked){
-			_result.write(data)
+			let to_parse = _sequence[0] && _sequence[0].should_cache
+			_result.write(data , to_parse)
 			
 			if (last === 0x00 ){
 				let _rows = _result.read()  
 				if (_rows.headed && _rows.bodyed){
-					_reponse_stack.push(Buffer.concat(_rows.head))
-					_reponse_stack.push(Buffer.concat(_rows.body))
+					if (to_parse){	
+						_reponse_stack.push(Buffer.concat(_rows.head))
+						_reponse_stack.push(Buffer.concat(_rows.body))
+
+						_reponse_stack.push(_rows.columns)
+						_reponse_stack.push(_rows.columns_vals)
+					}
 
 					_result.reset()
 					processResponse(PACKET.ROW)
@@ -202,7 +216,7 @@ Net.createServer(function(sock) {
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
 			,_query
-		Print('on data' ,data.toString())
+		Print('on data' ,data)
 		if (!_handshaked){
 			_query = data
 		}
@@ -230,7 +244,7 @@ Net.createServer(function(sock) {
 						}).catch(err => {
 							//错误码 https://www.jianshu.com/p/53233bb792cf
 							//1158 SQLSTATE: 08S01 (ER_NET_READ_ERROR) 消息：读取通信信息包时出错
-							sock.write(Buffer.from([0x03,0x00,0x00,0x01,0xff,0x486,0xfe]))	
+							sock.write(Buffer.from([0x07,0x00,0x00,0x00,0x03,0x00,0x00,0x01,0xff,0x486,0xfe]))	
 							Print('cache read fail ' ,_query)
 							Cache.del(_query)
 							/// TODO throw error sock.write(Buffer.from(err))	
@@ -247,8 +261,16 @@ Net.createServer(function(sock) {
 					break
 				case 'update':
 				case 'delete':
-				case 'insert':
 				case 'replace':
+					//insert query 
+					let _update_who = Analytic.getChangeQueryCom(_query , _type)
+					if (_update_who){
+						_sequence.push(Analytic.wrap(_update_who.sql,_default_db,'select')) 
+        				sock.client.write(_update_who.buff)
+					}
+					console.log('_update_who' , _update_who)
+					break
+				case 'insert':
 				case 'use':
 					break
 				default:	

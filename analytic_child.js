@@ -110,6 +110,7 @@ function isQueryCacheAble(query ,cbk){
 	//测试	
 	return cbk(false)
 }
+
 process.on('message', (msg) => {
 	if (msg.query){
 		isQueryCacheAble(msg.query,function(id_names){
