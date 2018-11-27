@@ -40,6 +40,7 @@ Net.createServer(function(sock) {
     	,client = new Net.Socket()
 		,_reponse_stack  = []  
 		,protocol41 = false
+		,_upfetch_tmp = {}
 		,_result = new Result()
 
     SysPrint('CONNECTED: ' + sock.remoteAddress + ':' + sock.remotePort)
@@ -120,6 +121,12 @@ Net.createServer(function(sock) {
 
 				})
 				*/
+			}else if (_query && _query.upfetch && _query.update_id){
+				let _upfetch_ret = {}
+				_reponse_stack[2].forEach( (name , i) =>{
+					_upfetch_ret[name] = _reponse_stack[3][i]	
+				})
+				_upfetch_tmp[_query.update_id] = _upfetch_ret 
 			}
 		}else if (PACKET.OK === packet_type){
 			Print('_query' , _query , _reponse_stack.length)
@@ -129,7 +136,10 @@ Net.createServer(function(sock) {
 				case 'delete':
 				case 'insert':
 				case 'replace':
-					//Analytic.dataChange(_query)
+					if (_upfetch_tmp[_query.id]){
+						Analytic.dataChange(_query ,_upfetch_tmp[_query.id])
+						delete _upfetch_tmp[_query.id]
+					}
 					break
 				case 'use':
 					_default_db = Analytic.getUseDB(_query.sql)
@@ -165,11 +175,15 @@ Net.createServer(function(sock) {
 		//http://mysql.taobao.org/monthly/2018/04/05/	
 		//https://blog.csdn.net/caisini_vc/article/details/5356136
 
-        sock.write(data)
 		let first = data.readUInt8(4)
+			,writed = false
+			,last = data.readUInt8(Buffer.byteLength(data) -1)
 
-		let last = data.readUInt8(Buffer.byteLength(data) -1)
-		///Print('response',first , last ,data.length,data)
+		if (first === 0xff || first === 0x00 || !_handshaked){	
+        	sock.write(data)
+			writed = true
+		}
+		///Print('response', data,data.toString())
 		///Print(data.toString())
 		///Print('raw',last,data)
 		if (first === 0xff){
@@ -187,7 +201,14 @@ Net.createServer(function(sock) {
 			}
 		}else if(_handshaked){
 			let to_parse = _sequence[0] && _sequence[0].should_cache
-			_result.write(data , to_parse)
+				,is_upfetch = _sequence[0] && _sequence[0].upfetch
+			if (is_upfetch){
+				to_parse = true
+			} else {
+				sock.write(data)
+				writed = true
+			}
+			_result.write(data , to_parse )
 			
 			if (last === 0x00 ){
 				let _rows = _result.read()  
@@ -202,8 +223,15 @@ Net.createServer(function(sock) {
 
 					_result.reset()
 					processResponse(PACKET.ROW)
+					if (is_upfetch){
+						return
+					}
 				}
 			}
+		}
+		if (!writed){
+        	sock.write(data)
+			writed = true
 		}
     })
     sock.client = client
@@ -216,7 +244,7 @@ Net.createServer(function(sock) {
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
 			,_query
-		Print('on data' ,data)
+		//Print('on data' ,data)
 		if (!_handshaked){
 			_query = data
 		}
@@ -265,10 +293,13 @@ Net.createServer(function(sock) {
 					//insert query 
 					let _update_who = Analytic.getChangeQueryCom(_query , _type)
 					if (_update_who){
-						_sequence.push(Analytic.wrap(_update_who.sql,_default_db,'select')) 
+						let _upfetch_query = Analytic.wrap(_update_who.sql,_default_db,'select') 
+						_upfetch_query.upfetch = true
+						_upfetch_query.update_id = _query.id 
+						_sequence.push(_upfetch_query)
         				sock.client.write(_update_who.buff)
 					}
-					console.log('_update_who' , _update_who)
+
 					break
 				case 'insert':
 				case 'use':

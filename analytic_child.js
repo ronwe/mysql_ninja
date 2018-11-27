@@ -16,7 +16,11 @@ function checkAffect(query,cbk){
 	switch(query.type){
 		case 'update':
 		case 'delete':
-			affected = getWhereCondition(query.sql,tables)
+			//affected = getWhereCondition(query.sql,tables)
+			affected = {
+				table : tables[0],
+				where : query.prev
+			}
 			/// getUpdatedField
 			break
 		case 'replace':
