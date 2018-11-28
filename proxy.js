@@ -32,6 +32,10 @@ function SysPrint(msg){
 	console.log(msg)
 }
 
+function rmQueryComment(sql){
+	sql = sql.replace(/\/\*{1,2}[\s\S]*?\*\//g,'').trim()
+	return sql
+}
 
 Net.createServer(function(sock) {
 	let _sequence = [] 
@@ -244,17 +248,18 @@ Net.createServer(function(sock) {
 		//_reponse_stack = []
 		let _detect = data.readUInt8(4)
 			,_query
-		//Print('on data' ,data)
+		Print('on data' ,data ,data.toString())
 		if (!_handshaked){
 			_query = data
 		}
 		//com标识 这个比较重要
 		//https://dev.mysql.com/doc/internals/en/text-protocol.html
 		if (_detect === 0x03){
-			let _sql = data.slice(5).toString() 
-			//Print('sql' ,_sql)
+			let _sql = rmQueryComment(data.slice(5).toString())
+			Print('sql' ,_sql)
 
 			let _type = _sql.split(' ')[0].toLowerCase()
+
 			// sql中包含注释会导致分析错误
 			_query = Analytic.wrap(_sql,_default_db,_type)
 			switch(_type){
