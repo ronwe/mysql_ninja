@@ -1,5 +1,3 @@
-{"u_merchant_user:mid":["20"],"_id":"a807ac8e953b6c97fa9f901c556c42c8","_sql":"select mid from u_merchant_user where  mid=20","fd":["a807ac8e953b6c97fa9f901c556c42c8_0","a807ac8e953b6c97fa9f901c556c42c8_1"]}
-{"$$deleted":true,"_id":"a807ac8e953b6c97fa9f901c556c42c8"}
-{"u_merchant_user:mid":["20"],"_id":"a807ac8e953b6c97fa9f901c556c42c8","_sql":"select mid from u_merchant_user where  mid=20","fd":["a807ac8e953b6c97fa9f901c556c42c8_0","a807ac8e953b6c97fa9f901c556c42c8_1"]}
-{"$$deleted":true,"_id":"a807ac8e953b6c97fa9f901c556c42c8"}
+{"u_merchant_user:mid":["20"],"_id":"41f3694eb20f07138d2d8ec9e78ac4ed","_sql":"select mid  from u_merchant_user where  mid=20","fd":["41f3694eb20f07138d2d8ec9e78ac4ed_0","41f3694eb20f07138d2d8ec9e78ac4ed_1"]}
+{"u_merchant_user:mid":["20"],"d_spot_collection_dir:id":["963"],"_id":"9385ea63b4933ccbb05a78eeafd2d93f","_sql":"select u.mid ,l.id,l.create_time from u_merchant_user u ,d_spot_collection_dir l where l.mid=u.mid and   u.mid=20","fd":["9385ea63b4933ccbb05a78eeafd2d93f_0","9385ea63b4933ccbb05a78eeafd2d93f_1"]}
 {"u_merchant_user:mid":["20"],"_id":"a807ac8e953b6c97fa9f901c556c42c8","_sql":"select mid from u_merchant_user where  mid=20","fd":["a807ac8e953b6c97fa9f901c556c42c8_0","a807ac8e953b6c97fa9f901c556c42c8_1"]}
